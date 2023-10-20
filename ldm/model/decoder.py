@@ -10,12 +10,12 @@ class AttentionBlock(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residue = x
-        n, c, h, w = x.shape
-        x = x.view(n, c, h*w)
+        b, c, h, w = x.shape
+        x = x.view(b, c, h*w)
         x = x.transpose(-1, -2)
         x = self.attention(x)
         x = x.transpose(-1, -2)
-        x = x.view(n, c, h, w)
+        x = x.view(b, c, h, w)
         x += residue
         return x
 
