@@ -2,6 +2,9 @@ import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
+def accuracy_fn(pred, y):
+    return (pred.argmax(dim=1) == y).sum().item() / len(pred)
+
 def show_images(dataset, class_names, rows=3, cols=3):
     fig = plt.figure(figsize=(9, 9))
     for i in range(1, rows * cols + 1):
