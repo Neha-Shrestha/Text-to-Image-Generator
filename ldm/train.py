@@ -30,9 +30,7 @@ def fit(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, sc
         
         train_count = len(train_dataloader)*(epoch+1)
         test_count = len(test_dataloader)*(epoch+1)
-        print(f"{scheduler.get_lr()}")
         scheduler.step()
-        print(f"{scheduler.get_lr()}")
         
         print(f"| Epoch: {epoch} | Train loss: {train_loss / train_count } | Train accuracy: {train_acc / train_count} | Test loss: {test_loss / test_count} | Test accuracy: {test_acc / test_count} |")
     
