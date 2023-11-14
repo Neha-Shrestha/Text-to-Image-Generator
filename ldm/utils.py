@@ -3,7 +3,10 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 def accuracy_fn(pred, y):
-    return (pred.argmax(dim=1) == y).sum().item() / len(pred)
+    return (pred.argmax(dim=1) == y).float().mean()
+
+def report(loss, pred, y):
+    print(f'{loss:.2f}, {accuracy_fn(preds, yb):.2f}')
 
 def show_images(dataset, class_names=None, rows=3, cols=3):
     fig = plt.figure(figsize=(9, 9))
