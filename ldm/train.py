@@ -70,3 +70,33 @@ def fit_2(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, 
         print(epoch, tot_loss/count, tot_acc/count)
         print("--------------------")
     return tot_loss/count, tot_acc/count
+
+def fit_3(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, device):
+    result = dict.fromkeys(["mode", "epoch", "loss", "accuracy"])
+    
+    for epoch in range(epochs):
+        model.to(device)
+        model.train()
+        for X, y in train_dataloader:
+            X, y = X.to(device), y.to(device)
+            loss = loss_fn(model(X), y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.inference_mode():
+            tot_loss, tot_acc, count = 0.,0.,0
+            for X, y in test_dataloader:
+                X, y = X.to(device), y.to(device)
+                pred = model(X)
+                loss_metric.update(loss_fn(model(X), y))
+                accuracy_metric.update(pred, y)
+            result["mode"] = "test"
+            result["epoch"] = epoch
+            result["loss"] = loss_metric.compute().item()
+            result["accuracy"] = accuracy_metric.compute().item()
+            loss_metric.reset()
+            accuracy_metric.reset()
+        
+        print(result)
