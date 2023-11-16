@@ -100,3 +100,38 @@ def fit_3(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, 
             accuracy_metric.reset()
         
         print(result)
+
+# insert in train 
+
+def fit_4(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, scheduler, device):
+    result = dict.fromkeys(["mode", "epoch", "loss", "accuracy"])
+    
+    for epoch in range(epochs):
+        model.to(device)
+        model.train()
+        print(f"before: {scheduler.get_last_lr()}")
+        for X, y in train_dataloader:
+            X, y = X.to(device), y.to(device)
+            loss = loss_fn(model(X), y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.inference_mode():
+            for X, y in test_dataloader:
+                X, y = X.to(device), y.to(device)
+                pred = model(X)
+                loss_metric.update(loss_fn(model(X), y))
+                accuracy_metric.update(pred, y)
+            result["mode"] = "test"
+            result["epoch"] = epoch
+            result["loss"] = loss_metric.compute().item()
+            result["accuracy"] = accuracy_metric.compute().item()
+            loss_metric.reset()
+            accuracy_metric.reset()
+
+        scheduler.step()
+        print(f"after: {scheduler.get_last_lr()}")
+        
+        print(result)
