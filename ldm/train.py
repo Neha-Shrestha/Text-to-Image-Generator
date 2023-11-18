@@ -1,137 +1,76 @@
 import torch
-from tqdm import tqdm
-from utils import accuracy_fn
+from tqdm.notebook import trange
+from IPython.display import display
+from torcheval.metrics import MulticlassAccuracy, Mean
+from utils import plot_curves
 
-def fit(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, scheduler, device):
-    model.to(device)
+class Learner:
+    def __init__(self, model, train_dataloader, test_dataloader, loss_fn, optimizer, scheduler, device):
+        self.model = model
+        self.train_dataloader = train_dataloader
+        self.test_dataloader = test_dataloader
+        self.loss_fn = loss_fn
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.device = device
+        self.loss_metric = Mean(device=self.device)
+        self.accuracy_metric = MulticlassAccuracy(device=self.device)
+        self.results = {
+            "train_loss": [],
+            "train_acc": [],
+            "test_loss": [],
+            "test_acc": []
+        }
     
-    train_count, test_count = 0, 0
-    train_loss, train_acc, test_loss, test_acc = 0, 0, 0, 0
-    
-    for epoch in tqdm(range(epochs)):
-        model.train()
-        for X, y in train_dataloader:
-            X, y = X.to(device), y.to(device)
-            y_pred = model(X)
-            loss = loss_fn(y_pred, y) 
-            train_loss += loss
-            train_acc += accuracy_fn(y_pred, y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        model.eval()
-        with torch.inference_mode():
-            for X, y in test_dataloader:
-                X, y = X.to(device), y.to(device)
-                test_pred = model(X)
-                test_loss += loss_fn(test_pred, y)
-                test_acc += accuracy_fn(pred=test_pred, y=y)
+    def _update_results(self):
+        self.loss_metric.update(self.loss)
+        self.accuracy_metric.update(self.pred, self.y)
         
-        train_count = len(train_dataloader)*(epoch+1)
-        test_count = len(test_dataloader)*(epoch+1)
-        scheduler.step()
-        
-        print(f"| Epoch: {epoch} | Train loss: {train_loss / train_count } | Train accuracy: {train_acc / train_count} | Test loss: {test_loss / test_count} | Test accuracy: {test_acc / test_count} |")
-    
-    return (
-        train_loss.item() / train_count,
-        train_acc / train_count,
-        test_loss.item() / test_count,
-        test_acc / test_count
-    )
+    def _compute_results(self):
+        lm = self.loss_metric.compute().item()
+        am = self.accuracy_metric.compute().item()
+        if self.training:
+            mode = "train"
+            self.results["train_loss"].append(lm)
+            self.results["train_acc"].append(am)
+        else:
+            mode = "test"
+            self.results["test_loss"].append(lm)
+            self.results["test_acc"].append(am)
+        self.loss_metric.reset()
+        self.accuracy_metric.reset()
+        print(f"{self.epoch}\t{mode}\t{lm:.4f}\t{am:.4f}")
 
-def fit_2(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, device):
-    for epoch in range(epochs):
-        model.to(device)
-        model.train()
-        for X, y in train_dataloader:
-            X, y = X.to(device), y.to(device)
-            loss = loss_fn(model(X), y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+    def _run_batch(self):
+        self.pred = self.model(self.X)
+        self.loss = self.loss_fn(self.pred, self.y)
+        self._update_results()
+        if self.training:
+            self.optimizer.zero_grad()
+            self.loss.backward()
+            self.optimizer.step()
 
-        model.eval()
-        with torch.inference_mode():
-            tot_loss, tot_acc, count = 0.,0.,0
-            for X, y in test_dataloader:
-                X, y = X.to(device), y.to(device)
-                pred = model(X)
-                n = len(X)
-                count += n
-                tot_loss += loss_fn(pred, y).item()*n
-                tot_acc += accuracy_fn(pred, y).item()*n
-        print("--------------------")
-        print(count)
-        print(tot_loss)
-        print(tot_acc)
-        print("--------------------")
-        print(epoch, tot_loss/count, tot_acc/count)
-        print("--------------------")
-    return tot_loss/count, tot_acc/count
-
-def fit_3(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, device):
-    result = dict.fromkeys(["mode", "epoch", "loss", "accuracy"])
-    
-    for epoch in range(epochs):
-        model.to(device)
-        model.train()
-        for X, y in train_dataloader:
-            X, y = X.to(device), y.to(device)
-            loss = loss_fn(model(X), y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        model.eval()
-        with torch.inference_mode():
-            tot_loss, tot_acc, count = 0.,0.,0
-            for X, y in test_dataloader:
-                X, y = X.to(device), y.to(device)
-                pred = model(X)
-                loss_metric.update(loss_fn(model(X), y))
-                accuracy_metric.update(pred, y)
-            result["mode"] = "test"
-            result["epoch"] = epoch
-            result["loss"] = loss_metric.compute().item()
-            result["accuracy"] = accuracy_metric.compute().item()
-            loss_metric.reset()
-            accuracy_metric.reset()
-        
-        print(result)
-
-# insert in train 
-
-def fit_4(epochs, model, train_dataloader, test_dataloader, loss_fn, optimizer, scheduler, device):
-    result = dict.fromkeys(["mode", "epoch", "loss", "accuracy"])
-    
-    for epoch in range(epochs):
-        model.to(device)
-        model.train()
-        print(f"before: {scheduler.get_last_lr()}")
-        for X, y in train_dataloader:
-            X, y = X.to(device), y.to(device)
-            loss = loss_fn(model(X), y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        model.eval()
-        with torch.inference_mode():
-            for X, y in test_dataloader:
-                X, y = X.to(device), y.to(device)
-                pred = model(X)
-                loss_metric.update(loss_fn(model(X), y))
-                accuracy_metric.update(pred, y)
-            result["mode"] = "test"
-            result["epoch"] = epoch
-            result["loss"] = loss_metric.compute().item()
-            result["accuracy"] = accuracy_metric.compute().item()
-            loss_metric.reset()
-            accuracy_metric.reset()
-
-        scheduler.step()
-        print(f"after: {scheduler.get_last_lr()}")
-        
-        print(result)
+    def _run_epoch(self, train=True):
+        self.training = train
+        self.dl = self.train_dataloader if self.training else self.test_dataloader
+        for self.X, self.y in self.dl:
+            self.X, self.y = self.X.to(self.device), self.y.to(self.device)
+            self._run_batch()
+        self._compute_results()
+            
+    def fit(self, epochs, train=True, test=True):
+        self.epochs = epochs
+        self.model.to(self.device)
+        progress_bar = trange(self.epochs, desc="Progress")
+        display(progress_bar)
+        print("Epoch\tMode\tLoss\tAccuracy")
+        for self.epoch in progress_bar:
+            if train:
+                self.model.train()
+                self._run_epoch(True)
+            if test: 
+                self.model.eval()
+                with torch.inference_mode(): 
+                    self._run_epoch(False)
+            self.scheduler.step()
+        plot_curves(self.results)
