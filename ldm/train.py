@@ -29,14 +29,9 @@ class Learner:
     def _compute_results(self):
         lm = self.loss_metric.compute().item()
         am = self.accuracy_metric.compute().item()
-        if self.training:
-            mode = "train"
-            self.results["train_loss"].append(lm)
-            self.results["train_acc"].append(am)
-        else:
-            mode = "test"
-            self.results["test_loss"].append(lm)
-            self.results["test_acc"].append(am)
+        mode = "train" if self.training else "test"
+        self.results[f"{mode}_loss"].append(lm)
+        self.results[f"{mode}_acc"].append(am)
         self.loss_metric.reset()
         self.accuracy_metric.reset()
         print(f"{self.epoch}\t{mode}\t{lm:.4f}\t{am:.4f}")
