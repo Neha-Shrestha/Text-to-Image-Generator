@@ -2,17 +2,11 @@ import torch
 from tqdm.notebook import trange
 from IPython.display import display
 from torcheval.metrics import MulticlassAccuracy, Mean
-from utils import plot_curves
+from utils import *
 
 class Learner:
     def __init__(self, model, train_dataloader, test_dataloader, loss_fn, optimizer, scheduler, device):
-        self.model = model
-        self.train_dataloader = train_dataloader
-        self.test_dataloader = test_dataloader
-        self.loss_fn = loss_fn
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-        self.device = device
+        init_attr(self, locals())
         self.loss_metric = Mean(device=self.device)
         self.accuracy_metric = MulticlassAccuracy(device=self.device)
         self.results = {

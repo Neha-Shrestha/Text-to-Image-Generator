@@ -2,6 +2,11 @@ import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
+def init_attr(instance, locals):
+    locals.pop('self', None)
+    for k, v in locals.items():
+        setattr(instance, k, v)
+
 def dataloader(train_dataset, test_dataset, batch_size):
     return (
         DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True), 
