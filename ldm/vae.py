@@ -7,6 +7,12 @@ def lin(ic, oc, act=nn.ReLU):
     if act: layers.append(act())
     return layers
 
+# def lin(ni, nf, act=nn.SiLU, norm=nn.BatchNorm1d, bias=True):
+#     layers = nn.Sequential(nn.Linear(ni, nf, bias=bias))
+#     if act : layers.append(act())
+#     if norm: layers.append(norm(nf))
+#     return layers
+
 def vae_loss(X_new=None, X=None, mu=None, lv=None):
     return F.binary_cross_entropy(X_new, X, reduction="sum") + (-0.5 * torch.sum(1 + lv - mu.pow(2) - lv.exp()))
 
