@@ -5,98 +5,163 @@ import math
 from time_embedding import *
 from attention import *
 
-def unet_conv(ic, oc, ks=3, stride=1, act=nn.SiLU, norm=None, bias=True):
+def unet_conv(in_channels, out_channels, kernel_size=3, stride=1, act=nn.SiLU, norm=None, bias=True):
     layers = nn.Sequential()
-    if norm: layers.append(norm(ic))
-    if act : layers.append(act())
-    layers.append(nn.Conv2d(ic, oc, stride=stride, kernel_size=ks, padding=ks//2, bias=bias))
-    return layers
-
-def lin(ic, oc, stride=1, act=nn.SiLU, norm=None, bias=True):
-    layers = nn.Sequential()
-    if norm: layers.append(norm(ic))
-    if act : layers.append(act())
-    layers.append(nn.Linear(ic, oc, bias=bias))
+    if norm: layers.append(norm(in_channels))
+    if act: layers.append(act())
+    layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size//2, bias=bias))
     return layers
 
 class ResBlock(nn.Module):
-    def __init__(self, n_emb, ic, oc=None, ks=3, act=nn.SiLU, norm=nn.BatchNorm2d, attn_chans=0):
+    def __init__(self, n_embedding, in_channels, out_channels=None, kernel_size=3, act=nn.SiLU, norm=nn.BatchNorm2d, attn_channs=0):
         super().__init__()
-        self.emb_proj = nn.Linear(n_emb, oc*2)
-        self.conv1 = unet_conv(ic, oc, ks, act=act, norm=norm)
-        self.conv2 = unet_conv(oc, oc, ks, act=act, norm=norm)
-        self.idconv = nn.Identity() if ic==oc else nn.Conv2d(ic, oc, kernel_size=1)
+        if out_channels is None: out_channels = in_channels
+        self.emb_proj = nn.Linear(n_embedding, out_channels*2)
+        self.conv_1 = unet_conv(in_channels, out_channels, kernel_size=kernel_size, act=act, norm=norm)
+        self.conv_2 = unet_conv(out_channels, out_channels, kernel_size=kernel_size, act=act, norm=norm)
+        self.id_conv = nn.Identity() if in_channels == out_channels else nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.attn = False
-        if attn_chans: self.attn = SelfAttentionMultiHead(oc, attn_chans)
-    
-    def forward(self, x, t):
-        inp = x
-        x = self.conv1(x)
-        emb = self.emb_proj(act(t))[:, :, None, None]
-        scale, shift = torch.chunk(emb, 2, dim=1)
-        x = x*(1+scale) + shift
-        x = self.conv2(x) + self.idconv(inp)
-        if self.attn: x = x + self.attn(x)
-        return x
-
-class UNET_Encoder(nn.Module):
-    def __init__(self, n_emb, in_channels, nf, attn_chans):
-        super().__init__()
-        self.encoder = nn.ModuleList()
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        for f in nf:
-            self.encoder.append(ResBlock(n_emb, in_channels, oc=f, attn_chans=attn_chans))
-            in_channels = f
+        if attn_channs: self.attn = SelfAttention(out_channels, attn_channs)
         
     def forward(self, x, t):
+        inp = x
+        x = self.conv_1(x)
+        emb = self.emb_proj(F.silu(t))[:, :, None, None]
+        scale, shift = torch.chunk(emb, 2, dim=1)
+        x = x*(1+scale) + shift
+        x = self.conv_2(x) 
+        x += self.id_conv(inp)
+        if self.attn:
+            x += self.attn(x)
+        return x
+
+class DownSample(nn.Module):
+    def __init__(self, n_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(n_channels, n_channels, kernel_size=3, stride=2, padding=1) 
+    
+    def forward(self, x):
+        return self.conv(x)
+
+class UNET_Encoder(nn.Module):
+    def __init__(self, n_embedding, channels, attn_channs=0, attn_start=1):
+        super().__init__()
+        self.down_blocks = nn.ModuleList()
+        self.down_sample = nn.ModuleList()
+        
+        n_resolutions = len(channels)
+        out_channels = channels[0]
+        for i in range(n_resolutions):
+            in_channels = out_channels
+            out_channels = channels[i]
+            down = nn.ModuleList()
+            for j in range(2):
+                down.append(
+                    ResBlock(
+                        n_embedding, 
+                        in_channels if j==0 else out_channels, 
+                        out_channels=out_channels, 
+                        attn_channs=0 if j<attn_start else attn_channs
+                    )
+                )
+            self.down_blocks.append(down)
+            self.down_sample.append(
+                DownSample(out_channels) if (i < n_resolutions-1) and (j == 1) else nn.Identity()
+            )
+    
+    def forward(self, x, t):
         skips = []
-        for enc in self.encoder:
-            x = enc(x, t)
+        for i in range(len(self.down_blocks)):
+            for down in self.down_blocks[i]:
+                skips.append(x)
+                x = down(x, t)
             skips.append(x)
-            x = self.pool(x)
+            x = self.down_sample[i](x)
         return x, skips
 
-class UNET_Decoder(nn.Module):
-    def __init__(self, n_emb, nf, attn_chans):
+class UNET_Bottleneck(nn.Module):
+    def __init__(self, n_embedding, in_channels):
         super().__init__()
-        self.decoder = nn.ModuleList()
-        for f in nf:
-            self.decoder.append(nn.ConvTranspose2d(f*2, f, kernel_size=2, stride=2))
-            self.decoder.append(ResBlock(n_emb, f*2, oc=f, attn_chans=attn_chans))
+        self.unet_bottleneck_1 = ResBlock(n_embedding, in_channels, attn_channs=8)
+        self.unet_bottleneck_2 = ResBlock(n_embedding, in_channels)
     
-    def forward(self, x, skips, t):
-        for i in range(0, len(self.decoder), 2):
-            x = self.decoder[i](x)
-            x = torch.cat((skips[i//2], x), dim=1)
-            x = self.decoder[i+1](x, t)
+    def forward(self, x, t):
+        x = self.unet_bottleneck_1(x, t)
+        return self.unet_bottleneck_2(x, t)
+
+class UpSample(nn.Module):
+    def __init__(self, n_channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Upsample(scale_factor=2.0),
+            nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1)
+        )
+    
+    def forward(self, x):
+        return self.conv(x)
+
+# class UpSample(nn.Module):
+#     def __init__(self, n_channels):
+#         super().__init__()
+#         self.conv = nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1)
+    
+#     def forward(self, x):
+#         x = nn.functional.interpolate(x, scale_factor=2.0, mode='nearest')
+#         return self.conv(x)
+
+class UNET_Decoder(nn.Module):
+    def __init__(self, n_embedding, channels, attn_channs=0, attn_start=1):
+        super().__init__()
+        self.up_blocks = nn.ModuleList()
+        self.up_sample = nn.ModuleList()
+
+        n_resolutions = len(channels)
+        out_channels = channels[0]
+        for i in range(n_resolutions):
+            prev_channels = out_channels
+            in_channels = channels[min(i+1, n_resolutions-1)]
+            out_channels = channels[i]
+            up = nn.ModuleList()
+            for j in range(3):
+                up.append(
+                    ResBlock(
+                        n_embedding, 
+                        (prev_channels if j==0 else out_channels) + (in_channels if j==2 else out_channels), 
+                        out_channels=out_channels, 
+                        attn_channs=0 if j>=n_resolutions-attn_start else attn_channs
+                    )
+                )
+            self.up_blocks.append(up)
+            self.up_sample.append(
+                UpSample(out_channels) if (i < n_resolutions-1) and (j==2) else nn.Identity()
+            )
+
+    def forward(self, x, t, skips):
+        for i in range(len(self.up_blocks)):
+            for up in self.up_blocks[i]:
+                x = up(torch.cat((x, skips.pop()), dim=1), t)
+            x = self.up_sample[i](x)
         return x
 
 class UNET(nn.Module):
-    def __init__(self, n_classes, in_channels, out_channels, nf=[64, 128, 256, 512], attn_chans=8):
+    def __init__(self, n_classes, in_channels, out_channels, channels=(64, 128, 256, 512), attn_channs=8):
         super().__init__()
-        self.t_emb = nf[0]
-        n_emb = self.t_emb*4
-        self.cond_emb = nn.Embedding(n_classes, n_emb)
+        self.n_channels = channels[0]
+        self.n_embedding = self.n_channels * 4
+        self.timestep_embedding = TimestepEmbedding(self.n_channels, self.n_embedding)
+        self.condition_embedding = nn.Embedding(n_classes, self.n_embedding)
 
-        self.emb_mlp = nn.Sequential(
-            lin(self.t_emb, n_emb, act=None, norm=nn.BatchNorm1d),
-            lin(n_emb, n_emb)
-        )
+        self.conv_in = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
+        self.encoder = UNET_Encoder(self.n_embedding, channels, attn_channs=attn_channs)
+        self.bottleneck = UNET_Bottleneck(self.n_embedding, channels[-1])
+        self.decoder = UNET_Decoder(self.n_embedding, channels[::-1], attn_channs=attn_channs)
+        self.conv_out = unet_conv(channels[0], out_channels, act=nn.SiLU, norm=nn.BatchNorm2d, bias=False)
 
-        self.unet_encoder = UNET_Encoder(n_emb, in_channels, nf, attn_chans)
-
-        self.bottle_neck = ResBlock(n_emb, nf[-1], nf[-1])
-
-        self.unet_decoder = UNET_Decoder(n_emb, nf[::-1], attn_chans)
-        
-        self.final_conv = nn.Conv2d(nf[0], out_channels, kernel_size=1)
-
-    def forward(self, inp):
-        x, t, c = inp
-        temb = timestep_embedding(t, self.t_emb)
-        cemb = self.cond_emb(c)
-        emb = self.emb_mlp(temb) + cemb
-        x, skips = self.unet_encoder(x, emb)
-        x = self.bottle_neck(x, emb)
-        x = self.unet_decoder(x, skips[::-1], emb)
-        return self.final_conv(x)
+    def forward(self, x, t, c):
+        emb = self.timestep_embedding(t) + self.condition_embedding(c)
+        x = self.conv_in(x)
+        x, skips = self.encoder(x, emb)
+        x = self.bottleneck(x, emb)
+        x = self.decoder(x, emb, skips)
+        x = self.conv_out(x)
+        return x
