@@ -100,15 +100,6 @@ class UpSample(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-# class UpSample(nn.Module):
-#     def __init__(self, n_channels):
-#         super().__init__()
-#         self.conv = nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1)
-    
-#     def forward(self, x):
-#         x = nn.functional.interpolate(x, scale_factor=2.0, mode='nearest')
-#         return self.conv(x)
-
 class UNET_Decoder(nn.Module):
     def __init__(self, n_embedding, channels, attn_channs=0, attn_start=1):
         super().__init__()
