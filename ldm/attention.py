@@ -10,13 +10,25 @@ class SelfAttention(nn.Module):
         self.norm = nn.BatchNorm2d(ni)
 
     def forward(self, x):
-        n,c,h,w = x.shape
-        x = self.norm(x).view(n, c, -1).transpose(1, 2)
-        x = self.attn(x, x, x, need_weights=False)[0]
+        n, c, h, w = x.shape
+        x_norm = self.norm(x.clone()) 
+        x_norm = x_norm.view(n, c, -1).transpose(1, 2)
+        x = self.attn(x_norm, x_norm, x_norm, need_weights=False)[0]
         return x.transpose(1,2).reshape(n,c,h,w)
 
-
 # class SelfAttention(nn.Module):
+#     def __init__(self, ni, attn_chans):
+#         super().__init__()
+#         self.attn = nn.MultiheadAttention(ni, ni//attn_chans, batch_first=True)
+#         self.norm = nn.BatchNorm2d(ni)
+
+#     def forward(self, x):
+#         n,c,h,w = x.shape
+#         x = self.norm(x).view(n, c, -1).transpose(1, 2)
+#         x = self.attn(x, x, x, need_weights=False)[0]
+#         return x.transpose(1,2).reshape(n,c,h,w)
+
+# class SelfAttentionMH(nn.Module):
 #     def __init__(self, ni, attn_chans, transpose=True):
 #         super().__init__()
 #         self.nheads = ni//attn_chans
@@ -40,7 +52,7 @@ class SelfAttention(nn.Module):
 #         if self.t: x = x.transpose(1, 2)
 #         return x
 
-# class SelfAttention2D(SelfAttention):
+# class SelfAttention(SelfAttentionMH):
 #     def forward(self, x):
 #         n,c,h,w = x.shape
 #         return super().forward(x.view(n, c, -1)).reshape(n,c,h,w)
