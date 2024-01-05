@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import math
 
 from time_embedding import *
 from attention import *
