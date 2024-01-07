@@ -37,5 +37,8 @@ class NumpyDS(CustomDataset):
         
         image = np.load(img_path)
         label = self.class_to_idx[class_name]
+
+        if self.transform:
+            image = self.transform(image)
         
         return image, label

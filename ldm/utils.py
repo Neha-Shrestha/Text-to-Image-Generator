@@ -1,5 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
+import torchvision.utils as vutils
+import numpy as np
 from torch.utils.data import DataLoader
 
 def init_attr(instance, locals):
@@ -11,8 +13,24 @@ def dataloader(train_dataset, test_dataset, batch_size):
     return (
         DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True), 
         DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False),
-        train_dataset.classes
     )
+
+def show_images_grid(batch, grid_size=5):
+    batch = batch.cpu()
+    grid_images = vutils.make_grid(batch[:grid_size], nrow=grid_size, normalize=True)
+    grid_images_np = grid_images.numpy()
+    grid_images_np = np.transpose(grid_images_np, (1, 2, 0))
+    plt.figure(figsize=(10, 10))
+    plt.imshow(grid_images_np)
+    plt.axis("off")
+    plt.show()
+
+def show_image(image, idx, msg=None):
+    single_image = image[idx].detach().cpu().permute(1, 2, 0).numpy()
+    plt.imshow(single_image)
+    plt.title(f'{msg} Image')
+    plt.axis('off')
+    plt.show()
 
 def show_images(dataset, class_names=None, rows=3, cols=3):
     fig = plt.figure(figsize=(9, 9))
