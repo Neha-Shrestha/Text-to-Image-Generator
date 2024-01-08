@@ -42,7 +42,7 @@ class DownSample(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-class UNET_Encoder(nn.Module):
+class UNETEncoder(nn.Module):
     def __init__(self, n_embedding, channels, attn_channs=0, attn_start=1):
         super().__init__()
         self.down_blocks = nn.ModuleList()
@@ -78,7 +78,7 @@ class UNET_Encoder(nn.Module):
             x = self.down_sample[i](x)
         return x, skips
 
-class UNET_Bottleneck(nn.Module):
+class UNETBottleneck(nn.Module):
     def __init__(self, n_embedding, in_channels):
         super().__init__()
         self.unet_bottleneck_1 = ResBlock(n_embedding, in_channels, attn_channs=8)
@@ -99,7 +99,7 @@ class UpSample(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-class UNET_Decoder(nn.Module):
+class UNETDecoder(nn.Module):
     def __init__(self, n_embedding, channels, attn_channs=0, attn_start=1):
         super().__init__()
         self.up_blocks = nn.ModuleList()
@@ -142,9 +142,9 @@ class UNET(nn.Module):
         self.condition_embedding = nn.Embedding(n_classes, self.n_embedding)
 
         self.conv_in = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
-        self.encoder = UNET_Encoder(self.n_embedding, channels, attn_channs=attn_channs)
-        self.bottleneck = UNET_Bottleneck(self.n_embedding, channels[-1])
-        self.decoder = UNET_Decoder(self.n_embedding, channels[::-1], attn_channs=attn_channs)
+        self.encoder = UNETEncoder(self.n_embedding, channels, attn_channs=attn_channs)
+        self.bottleneck = UNETBottleneck(self.n_embedding, channels[-1])
+        self.decoder = UNETDecoder(self.n_embedding, channels[::-1], attn_channs=attn_channs)
         self.conv_out = unet_conv(channels[0], out_channels, act=nn.SiLU, norm=nn.BatchNorm2d, bias=False)
 
     def forward(self, x, t, c):
