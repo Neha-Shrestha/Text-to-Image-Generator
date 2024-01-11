@@ -1,43 +1,44 @@
 import torch
-from utils import init_attr
+from tqdm import tqdm
 
 class DDPM:
     def __init__(self, beta_min, beta_max, n_steps, device):
-        init_attr(self, locals())
-        self.beta = torch.linspace(self.beta_min, self.beta_max, self.n_steps)
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+        self.n_steps = n_steps
+        self.device = device
+        self.beta = torch.linspace(self.beta_min, self.beta_max, self.n_steps, device=self.device)
         self.alpha = 1 - self.beta
         self.alpha_bar = self.alpha.cumprod(dim=0).to(self.device)
         self.sigma = self.beta.sqrt()
 
     def schedule(self, x):
-        t = torch.randint(0, self.n_steps, (len(x),), dtype=torch.long, device=self.device)
-        noise = torch.randn_like(x).to(self.device)
+        device = x.device
+        t = torch.randint(0, self.n_steps, (len(x),), dtype=torch.long, device=device)
+        noise = torch.randn_like(x).to(device)
         alpha_bar_t = self.alpha_bar[t].reshape(-1, 1, 1, 1)
         mean = alpha_bar_t.sqrt()*x
         variance = (1 - alpha_bar_t).sqrt()*noise
-        x = mean + variance
-        return x, t, noise
+        xt = mean + variance
+        return xt, t, noise
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def sample(self, model, sz, c):
-        device = self.device
-        xt = torch.randn(sz, device=device)
-        c = c.to(device)
+        device = next(model.parameters()).device
+        batch_size = sz[0]
+        xt = torch.randn(sz).to(device)
+        c = c.expand(batch_size).to(device)
         preds = []
-        for t in reversed(range(self.n_steps)):
-            t_batch = torch.full((xt.shape[0],), t, device=device, dtype=torch.long)
-            if t > 0:
-                noise = torch.randn(xt.shape).to(device)   
-                alpha_t_1 = self.alpha_bar[t-1]
-            else:
-                noise = torch.zeros(xt.shape).to(device)
-                alpha_t_1 = torch.tensor(1)
-            beta_t = 1 - self.alpha_bar[t]
-            beta_t_1 = 1 - alpha_t_1
-            noise_pred = model(xt, t_batch, c)
-            x0 = ((xt - beta_t.sqrt() * noise_pred)/self.alpha_bar[t].sqrt()).clamp(-1,1)
-            x0_coeff = (alpha_t_1.sqrt()*(1-self.alpha[t])) / beta_t
-            xt_coeff = (self.alpha[t].sqrt() * beta_t_1) / beta_t
-            xt = x0*x0_coeff + xt*xt_coeff + self.sigma[t]*noise
-            preds.append(xt)
+        for i in tqdm(reversed(range(self.n_steps))):
+            t = torch.full((batch_size,), i, dtype=torch.long, device=device)
+            noise_pred = model(xt, t, c)
+            noise = (torch.randn_like(xt) if i > 0 else torch.zeros_like(xt)).to(device)
+            alpha_t1 = self.alpha[t - 1] if t > 0 else torch.tensor(1)
+            beta_bar_t = 1 - self.alpha[t]
+            beta_bar_t1 = 1 - alpha_t1
+            x_0_hat = ((x_t - beta_bar_t.sqrt() * noise_pred) / self.alpha[t].sqrt()).clamp(-1, 1)
+            x0_coeff = alpha_t1.sqrt() * (1 - self.alpha[t]) / beta_bar_t
+            xt_coeff = self.alpha[t].sqrt() * beta_bar_t1 / beta_bar_t
+            x_t = x_0_hat * x0_coeff + x_t * xt_coeff + self.sigma[t] * z
+            preds.append(x_t.cpu())
         return preds
