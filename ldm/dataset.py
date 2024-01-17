@@ -21,8 +21,7 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         class_name, img_path = self.file_list[idx]
-        image = Image.open(img_path).convert("RGB")
-        image = np.array(image) / 255.0
+        image = Image.open(img_path).convert("RGB").resize((256, 256))
 
         label = self.class_to_idx[class_name]
 
@@ -37,8 +36,5 @@ class NumpyDS(CustomDataset):
         
         image = np.load(img_path)
         label = self.class_to_idx[class_name]
-
-        if self.transform:
-            image = self.transform(image)
         
         return image, label
