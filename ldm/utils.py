@@ -4,6 +4,27 @@ import torchvision.utils as vutils
 import numpy as np
 from torch.utils.data import DataLoader
 
+import torch
+from PIL import Image
+
+def get_class_tensor(class_name):
+    class_mapping = {"barack obama": 0, "cristiano ronaldo": 1, "donald trump": 2}
+    lower_class_name = class_name.lower()
+    if lower_class_name in class_mapping:
+        class_idx = class_mapping[lower_class_name]
+        return torch.tensor(class_idx)
+    return None
+
+def latents_to_pil(vae, latents):     
+    latents = (1 / 0.18215) * latents     
+    image = vae.decode(latents).sample
+    image = (image / 2 + 0.5).clamp(0, 1)
+    image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
+    images = (image * 255).round().astype("uint8")
+    pil_images = [Image.fromarray(image) for image in images]
+    return pil_images
+
+
 def init_attr(instance, locals):
     locals.pop('self', None)
     for k, v in locals.items():
