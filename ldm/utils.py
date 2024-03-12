@@ -1,10 +1,7 @@
-import torch
-import matplotlib.pyplot as plt
-import torchvision.utils as vutils
-import numpy as np
-from torch.utils.data import DataLoader
+import os
 
 import torch
+import matplotlib.pyplot as plt
 from PIL import Image
 
 def get_class_tensor(class_name):
@@ -15,56 +12,33 @@ def get_class_tensor(class_name):
         return torch.tensor(class_idx)
     return None
 
-def latents_to_pil(vae, latents):     
+def get_class_name(class_idx):
+    class_mapping = {0: "barack obama", 1: "cristiano ronaldo", 2: "donald trump"}
+    if class_idx in class_mapping:
+        return class_mapping[class_idx]
+    return None
+
+def latents_to_pil(vae, latents):
     latents = (1 / 0.18215) * latents     
-    image = vae.decode(latents).sample
+    with torch.inference_mode():
+        image = vae.decode(latents).sample
     image = (image / 2 + 0.5).clamp(0, 1)
     image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
     images = (image * 255).round().astype("uint8")
     pil_images = [Image.fromarray(image) for image in images]
     return pil_images
 
-
-def init_attr(instance, locals):
-    locals.pop('self', None)
-    for k, v in locals.items():
-        setattr(instance, k, v)
-
-def dataloader(train_dataset, test_dataset, batch_size):
-    return (
-        DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True), 
-        DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False),
-    )
-
-def show_images_grid(batch, grid_size=5):
-    batch = batch.cpu()
-    grid_images = vutils.make_grid(batch[:grid_size], nrow=grid_size, normalize=True)
-    grid_images_np = grid_images.numpy()
-    grid_images_np = np.transpose(grid_images_np, (1, 2, 0))
-    plt.figure(figsize=(10, 10))
-    plt.imshow(grid_images_np)
-    plt.axis("off")
-    plt.show()
-
-def show_image(image, idx, msg=None):
-    single_image = image[idx].detach().cpu().permute(1, 2, 0).numpy()
-    plt.imshow(single_image)
-    plt.title(f'{msg} Image')
-    plt.axis('off')
-    plt.show()
-
-def show_images(dataset, class_names=None, rows=3, cols=3):
-    fig = plt.figure(figsize=(9, 9))
-    for i in range(1, rows * cols + 1):
-        idx = torch.randint(0, len(dataset), size=[1]).item()
-        fig.add_subplot(rows, cols, i)
-        if class_names:
-            image, label = dataset[idx]
-            plt.title(class_names[label])
-        else:
-            image = dataset[idx]
-        plt.imshow(image.squeeze(), cmap="gray")
-        plt.axis(False)
+def save_images(img_name, images, labels):
+    if not os.path.exists("results"):
+        os.makedirs("results")
+    fig = plt.figure(figsize=(15, 3))
+    for i in range(5):
+        ax = fig.add_subplot(1, 5, i+1)
+        ax.set_title(get_class_name(labels[i].item()))
+        ax.imshow(images[i])
+        ax.axis("off")
+        plt.savefig(f"results/image_{img_name}.png")
+    plt.close()
 
 def plot_curves(results):
     epochs = range(len(results["train_loss"]))
@@ -80,5 +54,14 @@ def plot_curves(results):
     plt.plot(epochs, results["test_acc"], label="Test Accuracy")
     plt.title("Accuracy")
     plt.xlabel("Epochs")
+    plt.legend()
+    plt.show()
+
+def plot_results(result, title):
+    batches = range(1, len(result) + 1)
+    plt.plot(batches, result, label=title)
+    plt.title(title)
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
     plt.legend()
     plt.show()
