@@ -1,4 +1,5 @@
 import os
+import re
 
 import torch
 import matplotlib.pyplot as plt
@@ -18,7 +19,7 @@ def get_class_name(class_idx):
         return class_mapping[class_idx]
     return None
 
-def latents_to_pil(vae, latents):
+def latents_to_pil(vae, latents, save_path=None):
     latents = (1 / 0.18215) * latents     
     with torch.inference_mode():
         image = vae.decode(latents).sample
@@ -26,7 +27,29 @@ def latents_to_pil(vae, latents):
     image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
     images = (image * 255).round().astype("uint8")
     pil_images = [Image.fromarray(image) for image in images]
+    if save_path: 
+        pil_images[0].save(save_path)
     return pil_images
+
+def plot_images_from_folder(folder_path):
+    save_path = "./images/inference_img.png"
+    _, axes = plt.subplots(2, 6, figsize=(20, 8))
+    image_files = sorted(
+        os.listdir(folder_path), 
+        key=lambda x: int(re.findall(r'\d+', x)[0]), 
+        reverse=True
+    )
+    for i, image_file in enumerate(image_files):
+        image_path = os.path.join(folder_path, image_file)
+        image = Image.open(image_path)
+        ax = axes[i // 6, i % 6]
+        ax.imshow(image)
+        ax.set_title(f"t={image_file}")
+        ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+    return Image.open(save_path)
 
 def save_images(img_name, images, labels):
     if not os.path.exists("results"):
@@ -37,25 +60,8 @@ def save_images(img_name, images, labels):
         ax.set_title(get_class_name(labels[i].item()))
         ax.imshow(images[i])
         ax.axis("off")
-        plt.savefig(f"results/image_{img_name}.png")
+        plt.savefig(f"./images/output.png")
     plt.close()
-
-def plot_curves(results):
-    epochs = range(len(results["train_loss"]))
-    plt.figure(figsize=(15, 6))
-    plt.subplot(1, 2, 1)
-    plt.plot(epochs, results["train_loss"], label="Train Loss")
-    plt.plot(epochs, results["test_loss"], label="Test Loss")
-    plt.title("Loss")
-    plt.xlabel("Epochs")
-    plt.legend()
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs, results["train_acc"], label="Train Accuracy")
-    plt.plot(epochs, results["test_acc"], label="Test Accuracy")
-    plt.title("Accuracy")
-    plt.xlabel("Epochs")
-    plt.legend()
-    plt.show()
 
 def plot_results(result, title):
     batches = range(1, len(result) + 1)
@@ -64,4 +70,6 @@ def plot_results(result, title):
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.legend()
-    plt.show()
+    # plt.show()
+    plt.savefig(f"./images/error_train.png")
+    plt.close()
