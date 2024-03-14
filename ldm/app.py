@@ -24,13 +24,13 @@ with gr.Blocks(title="Text-to-Image Generator") as app:
                 gr.Image(label="Model Loss", value="./images/final.png", width=500)
             
         with gr.Row():
-            with gr.Column():
-                inference_output = gr.Image(label="Timesteps")
-                generate_btn.click(
-                    generate_image,
-                    inputs=[text], 
-                    outputs=[image_output, inference_output],
-                )
+            inference_output = gr.Image(label="Timesteps")
+        
+        generate_btn.click(
+            generate_image,
+            inputs=[text], 
+            outputs=[image_output, inference_output],
+        )
 
     with gr.Tab("Training"):
         gr.Markdown("### Train a Text-to-Image Generator by inserting following Hyperparameters.")
@@ -52,7 +52,7 @@ with gr.Blocks(title="Text-to-Image Generator") as app:
             train_btn = gr.Button("Train")
             cancel_btn = gr.Button("Cancel")
         
-        progress_output = gr.Textbox()
+        progress_output = gr.Textbox(label="Result")
         
         train_btn.click(
             train, 
