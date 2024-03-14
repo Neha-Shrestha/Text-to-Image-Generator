@@ -47,6 +47,7 @@ def train(
 
     print_loss = 0
     global continue_training
+    continue_training = True
     for epoch in range(int(epochs)):
         train_loss = 0
 

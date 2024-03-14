@@ -6,7 +6,7 @@ def inference(unet, ddpm_scheduler, vae, device, num_images=1, text=None, img_na
     if text:
         label = get_class_tensor(text)
         if label is None: 
-            return "./images/error.jpg"
+            return "./images/error.jpg", "./images/error.jpg"
         labels = label.expand(num_images).to(device)
     else:
         labels = torch.randint(3, size=(noisy_images[:num_images].shape[0],)).to(device)
