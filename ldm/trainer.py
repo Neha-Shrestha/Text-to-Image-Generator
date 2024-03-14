@@ -19,7 +19,6 @@ def train(
     lr, 
     loss_fn, 
     optimizer, 
-    device, 
     latent_folder=None,
     preprocess=False, 
     data_folder=None,
@@ -37,9 +36,9 @@ def train(
     else:
         optimizer = torch.optim.SGD(unet.parameters(), lr=float(lr), momentum=0.999, weight_decay=0.0001)
     
-    dataloader = latent_dataloader(Path("./data/face/latents/"), batch_size=int(batch_size), shuffle=True)
+    if preprocess and data_folder: data_preprocessing(vae, data_folder, latent_folder)
 
-    if preprocess and latent_folder: data_preprocessing(vae, data_folder, latent_folder)
+    dataloader = latent_dataloader(Path("./data/face/latents/"), batch_size=int(batch_size), shuffle=True)
 
     losses = []
 
