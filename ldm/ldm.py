@@ -5,8 +5,6 @@ from inference import inference
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-num_of_generation = 1
-
 ddpm_scheduler = ldm_components.ddpm_schedular()
 vae = ldm_components.vae().to(device)
 unet = ldm_components.unet().to(device)

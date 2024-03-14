@@ -25,4 +25,3 @@ def data_preprocessing(vae, data_folder, latent_folder):
         lambda x: x * 2.0 - 1.0
     ])
     data_to_latents(vae, data_folder, latent_folder, transform=transform, batch_size=5)
-    data_to_latents(vae, data_folder, latent_folder, transform=transform, batch_size=5)
