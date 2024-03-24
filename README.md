@@ -2,6 +2,8 @@
 
 A final year project of BSc. CSIT, based on paper "High-Resolution Image Synthesis with Latent Diffusion Models": https://arxiv.org/pdf/2112.10752.pdf.
 
+The codes are present inside ldm folder: [here](ldm/)
+
 ## Abstract
 
 The “Text-to-Image generator” presents an innovative approach to synthesize visual content from textual descriptions. Leveraging the power of LDMs, the system employs a novel iterative process to refine a latent representation space, enabling the generation of high-quality images from diverse textual prompts. The project aims to provide users with a versatile tool for creative expression, educational illustration, and efficient content creation by combining the strengths of latent diffusion models and convolutional neural networks in a unified framework.  This project uses advanced Generative AI techniques like the diffusion model, UNet, and Variational Autoencoder to generate visual outputs. 
